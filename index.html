@@ -1,0 +1,448 @@
+<html>
+  <head>
+    <title>FFXIV Submersible Components Calculator</title>
+    <!-- 
+      Style and function based on a closed-source PHP original by Arstas Taint of Zodiark.
+
+      Data (c) Square Enix; used without permission, but probably fair use under 17 U.S.C. § 107,
+      clauses (1), (3), and (4).
+
+      Except for the well-known snippet defining Array.prototype.flatMap, all Javascript code
+      herein is original. I hereby release it into the public domain (or license it as CC0, where
+      'public domain' does not apply).
+    -->
+    <style>
+        h2 { text-align: center; }
+        abbr { border-bottom: 1px dotted; }
+        @supports(text-decoration: dotted underline) { abbr {
+             text-decoration: dotted underline;
+             border-bottom: none;
+         } }
+
+        .datagrid table { border-collapse: collapse; text-align: left; width: 100%; } 
+        .datagrid {font: normal 12px/150% Arial, Helvetica, sans-serif; background: #fff;
+                        overflow: hidden; border: 1px solid #006699; border-radius: 3px; }
+        .datagrid table td, .datagrid table th { padding: 3px 5px; }
+        .datagrid table thead th {
+            background:-webkit-gradient( linear, left top, left bottom,
+                         color-stop(0.05, #006699), color-stop(1, #00557F) );
+            background:-moz-linear-gradient( center top, #006699 5%, #00557F 100% );
+            background-color:#006699; color:#FFFFFF;
+            font-size: 15px; font-weight: bold; border-left: 1px solid #0070A8;
+        }
+        .datagrid table thead th:first-child { border: none; }
+        .datagrid table tbody td { color: #00557F; border-left: 1px solid #E1EEF4; font-size: 12px; }
+        .datagrid table tbody tr:nth-child(even) td { background: #E1EEF4; color: #00557F; }
+        .datagrid table tbody td:first-child { border-left: none; }
+        .datagrid table tbody tr:last-child td { border-bottom: none; }
+        .datagrid table thead .arrow { display: inline-block; float: right; margin-left: 5px; color: orange; }
+        .datagrid tr.hiddenRow { display: none; }
+    </style>
+    <script type="text/javascript">
+        Array.prototype.flatMap = function(f) { return [].concat.apply([], this.map(f)); };
+        Array.prototype.objectify = function(f) { return this.map(f).reduce((o,p)=>(o[p[0]]=p[1],o),{}); }
+        function ERR(e) { console.log(e); return e; }
+
+        /* HTML constructor-helpers */
+        const cT = document.createTextNode.bind(document);
+        const cE = function cE(tag) {
+          var e = document.createElement(tag);
+          for (var i = 1; i < arguments.length; ++i) {
+            var a = arguments[i];
+                 if (a instanceof Node) e.appendChild(a);
+            else if (typeof a === 'string') e.appendChild(cT(a));
+            else if (a.constructor === Object) {
+                   for (var attr in a) {
+                     if (attr in e && attr !== 'style')
+                       e[attr] = a[attr];             // JS if it's there (except style)
+                     else
+                       e.setAttribute(attr, a[attr]); // HTML if it's not
+                   }
+                 }
+            else throw ERR({err: "bad element-child", val: a});
+          }
+          return e;
+        };
+        
+        const shipBuilder = {
+          partTypes: ["Pressure Hull", "Rigging", "Forecastle", "Bridge"],
+          vals: ["Rank", "Components", "Surveillance", "Retrieval", "Speed", "Range", "Favor"],
+          get fullvals() { return ["ID", ...this.partTypes, ...this.vals.slice(1)]; },
+        
+          /* slurped data */
+          data: [[["Shark-class Pressure Hull",1,5,-10,30,20,40,20],
+                  ["Unkiu-class Pressure Hull",15,9,15,10,0,60,15]],
+                 [["Shark-class Stern",1,5,-30,20,60,30,15],
+                  ["Unkiu-class Stern",15,9,15,0,30,40,25]],
+                 [["Shark-class Bow",1,5,50,40,10,-20,15],
+                  ["Unkiu-class Bow",15,9,60,20,20,-15,10]],
+                 [["Shark-class Bridge",1,5,20,20,20,20,20],
+                  ["Unkiu-class Bridge",15,9,25,5,25,30,30]]],
+        
+          get partNames() {
+            delete this.partNames;
+            return this.partNames =
+              this.data.objectify((vs,i)=>[this.partTypes[i],vs.map(p=>p[0])]);
+          },
+        
+          get entireGrid() {
+            delete this.entireGrid;
+            return this.entireGrid =
+              this.data.reduce((g,ps) =>
+                g.flatMap(sh => ps.map((p,i) => ({
+                  parts: [...sh.parts, i],
+                  vals: sh.vals.map((a,i)=>a+p[i+2]) // +2 to skip Name and Rank
+                }))),
+                [{ parts: [], vals: Array(this.vals.length-1).fill(0) }] // -1 to skip Rank
+              ).map((v,i) => [i].concat(v.parts, v.vals)) /* ID# and flatten */
+            ;
+          }
+        };
+
+        const displayLogic = (() => {
+        
+          return {
+            headers: shipBuilder.fullvals,
+            printers: [
+              a => `#${a}`,
+              ...shipBuilder.partTypes.map(type => ix => shipBuilder.partNames[type][ix] || "AAAAA"),
+              ...shipBuilder.vals.map(_ => a => a.toString())
+            ],
+          
+            injectTypeTable(element, type) {
+              const which = shipBuilder.partTypes.indexOf(type);
+              element.classList.add('datagrid');
+              element.appendChild( cE('table',
+                cE('thead', cE('tr', ...["Name", ...shipBuilder.vals].map(n => cE('th', n)))),
+                cE('tbody', ...shipBuilder.data[which].map(L => 
+                   cE('tr', ...L.map(v => cE('td', v.toString())))
+                ))
+              ));
+            },
+          
+            /* array of key/value pairs; key object is registration-cookie */
+            /* todo: replace with Map */
+            _filters: [],
+            _removeFilter(k) { this._filters = this._filters.filter(e => !Object.is(e[0],k)); },
+            _filterTestLine(line) { return this._filters.every(e => e[1](line)) },
+            addFilter(f) {
+              const T = this;
+              const k = { remove(){ T._removeFilter(this); } };
+              this._filters.push([k,f]);
+              return k;
+            },
+          
+            sortColumn: 0,
+            sortDown: true,
+          
+            makeSorter(sort, isDown) {
+              const i = sort;
+              return isDown
+                ? (a,b) => a[i] - b[i]
+                : (a,b) => b[i] - a[i];
+            },
+            
+            _arrow: undefined,
+            _headElements: undefined,
+            _tableRows: undefined,
+            _textFields: undefined, // array of array of references
+            _combinationsText: undefined,
+
+            createEmptyTable() {
+              this._arrow = cE('span', {class: "arrow"}, "-");
+              this._headElements = this.headers.map(name => cE('th', name));
+              this._placeArrow();
+
+              this._headElements.forEach((e,i) => {
+                e.addEventListener('click',
+                  () => this.resortUsing(i, i==this.sortColumn && !this.sortDown)
+                );
+                e.style.cursor = 'pointer';
+              });
+              const tHead = cE('thead', cE('tr', ...this._headElements));
+              
+              // allocate enough "space" to hold the whole grid
+              // TODO: try using a DocumentFragment instead? This smells terrible.
+              const length = shipBuilder.entireGrid.length;
+              const width = shipBuilder.entireGrid[0].length;
+              this._textFields = (new Array(length)).fill('')
+                .map((_,i,arr) => new Array(width));
+              this._tableRows = shipBuilder.entireGrid.map((L,i) => cE('tr',
+                ...L.map((v,j) => cE('td', this._textFields[i][j]=cT("~")))
+              ));
+
+              const tBody = cE('tbody', ...this._tableRows);
+              return cE('table', tHead, tBody);
+            },
+
+            _placeArrow() {
+              this._arrow.firstChild.textContent = this.sortDown ? "▼": "▲";
+              this._headElements[this.sortColumn].appendChild(this._arrow);
+            },
+
+            _lastTableData: undefined,
+            _injectData(data) {
+              const sdata = data.sort(this.makeSorter(
+                this.sortColumn, this.sortDown));
+              sdata.forEach((L,i) => L.forEach((v,j) =>
+                this._textFields[i][j].textContent = this.printers[j](v)
+              ));
+              this._lastTableData = sdata;
+            },
+            
+            resortUsing(id, dir) {
+              this.sortColumn = id;
+              this.sortDown = dir;
+              this._placeArrow();
+              this._injectData(this._lastTableData);
+            },
+            
+            rebuildTableContents() {
+              const data = shipBuilder.entireGrid
+                 .filter(L => this._filterTestLine(L));
+              this._injectData(data);
+              
+              const len = data.length;
+              this._tableRows.forEach((r,i) => i < len
+                 ? r.classList.remove('hiddenRow')
+                 : r.classList.add('hiddenRow')
+              );
+              
+              displayLogic._combinationsText.firstChild.textContent =
+                len == 0 ? "There are no possible combinations" :
+                len == 1 ? "There is only one possible combination" :
+                           `There are ${len} possible combinations`;
+
+              this._lastTableData = data;
+            },
+            
+            shipPartsFilterer: {
+              _state: undefined,
+              _boxes: undefined,
+              _setup() {
+                const partFiltersForm = document.forms.part_filters;
+                _setHandler = cb => {
+                  cb.addEventListener('change', () => this.react());
+                  return cb;
+                }
+                this._boxes =
+                  shipBuilder.data.map(pts =>
+                    pts.map(pt =>
+                      _setHandler(cE('input', {type: 'checkbox', checked: true}))
+                    )
+                  );
+                partFiltersForm.appendChild( cE('div', {style: 'display: flex; flex-direction: row;'},
+                   ...this._boxes.map((col, i) => cE('div',
+                      {style: 'display: flex; flex-direction: column; margin: 0px 2px; justify-items: space-between;'},
+                      ...col.map((box, j) => cE('label', box, shipBuilder.data[i][j][0]))
+                   ))
+                ));
+                const iMax = shipBuilder.data.length;
+                function ix(i,j) { return i + iMax * j; };
+                displayLogic.addFilter(
+                  row => row.slice(1, 1+iMax).every((v,i) => this._boxes[i][v].checked)
+                );
+              },
+              setAll(all) {
+                Array.from(document.forms.part_filters.elements)
+                  .forEach(c => c.checked = !!all);
+                this.react();
+              },
+              react() {
+                displayLogic.rebuildTableContents(); // technically a hack
+              },
+            },
+            
+            onLoad() {
+              /* inject type data tables */
+              shipBuilder.partTypes.forEach(type => {
+                var e = document.getElementById(`${type}-data-table`);
+                e && this.injectTypeTable(e, type);
+              });
+
+              /* hook up ship stat filters */
+              Array.from(document.forms['stat_filters'].elements)
+                .forEach(input => {
+                   const ix = this.headers.indexOf(input.name);
+                   const f = input.name == "Components" /* VILE HACK */
+                     ? L => L[ix] <= input.value
+                     : L => L[ix] >= input.value;
+                   this.addFilter(f);
+                   input.oninput = () => this.rebuildTableContents();
+                });
+
+              /* create and hook up ship part filters */
+              this.shipPartsFilterer._setup();
+
+              this._combinationsText = document.getElementById('combinationsText');
+
+              this._table = this.createEmptyTable();
+              this.rebuildTableContents();
+
+              const tableHolder = document.getElementById('main-table-div');
+              tableHolder.classList.add('datagrid');
+              tableHolder.appendChild(this._table);
+            }
+          }; /* displayLogic object */
+        })();
+
+        window.addEventListener('DOMContentLoaded', () => { displayLogic.onLoad() });
+    </script>
+  </head>
+
+<body style="overflow-y: scroll">
+
+<h2>Airship Components Calculator, Javascript Edition</h2>
+
+<center><p><i>
+   Taken in large part from <a href="http://sandcastle-khadgar.co.uk/media/airships/index.php">the original</a>
+   Airship Components Calculator</a>, by Arstas Taint of Zodiark.
+</i></p>
+</center>
+
+<hr/>
+
+<br/>
+
+<style>
+  .rblock {
+     background-color: #eee; display: inline-block;
+     margin: 3px; padding: 3px 10px; border-radius: 5px;
+     float: right;
+  }
+  .spoiler .spoilerData {
+     display: none;
+     visibility: hidden; opacity: 0; height: 0;
+  }
+  .spoiler[value="Show"] .spoilerData {
+     display: initial; visibility: visible; opacity: 1; height: auto;
+  }
+  .airshipParts h4 { font-weight: normal; font-style: italic; }
+</style>
+
+<script>
+  /* turn spoiler blocks into actual spoilers */
+  window.addEventListener('DOMContentLoaded', () => {
+    const abba = {Hide:'Show', Show:'Hide'};
+    Array.from(document.querySelectorAll('.spoiler'))
+      .forEach(spoiler => {
+        const btn = spoiler.querySelector('.sButton');
+        if (!btn) { 
+          console.log({err: 'no spoiler button', spoiler: spoiler});
+          return;
+        }
+        spoiler.setAttribute('value', 'Hide');
+        btn.value = 'Show';
+        btn.onclick = () => {
+          spoiler.setAttribute('value', btn.value);
+          btn.value = abba[btn.value];
+        };
+      });
+  });
+</script>
+
+<!-- TODO: clean and unify this CSS -->
+
+<div class="spoiler rblock" style="display: flex; flex-direction: column;">
+  <div style="display: flex; align-items: center; justify-content:space-between;">
+    <div style="flex: 0 0 auto"><b>Attributes reference</b></div>
+    <div style="flex-grow: 1; width: 30px;"></div>
+    <div style="flex: 0 0 auto; content-align:right;"><input type="button" class="sButton"></div>
+  </div>
+  <div class="spoilerData" style="padding: 0px 5px">
+    <hr/>
+    The descriptions below represent the <i>current best guess</i> (as of 2015-11-16) as to what
+       each of the stats contribute.
+    <ul>
+        <li><strong>Surveillance</strong>: May influence the probability of gathering a 2nd item per sector.
+              May also influence the probability of finding new sectors.</li>
+	<li><strong>Retrieval</strong>: Increases item extraction rating (higher quantities of a specific item,
+              better EXP bonus).</li>
+	<li><strong>Speed</strong>: Influences voyage duration.</li>
+	<li><strong>Range</strong>: Allows you to visit more sectors per voyage.</li>
+	<li><strong>Favor</strong>: <i>???</i> (Speculation: probability of HQ, weather conditions encountered).</li>
+    </ul>
+  </div>
+</div>
+
+<div style="clear:right"></div>
+
+<div class="spoiler rblock" style="display: flex; flex-direction: column;">
+  <div style="display: flex; align-items: center; justify-content:space-between;">
+    <div style="flex: 0 0 auto"><b>Airship part reference</b></div>
+    <div style="flex-grow: 1; width: 30px;"></div>
+    <div style="flex: 0 0 auto; content-align:right;"><input type="button" class="sButton"></div>
+  </div>
+  <div class="spoilerData airshipParts" style="padding: 0px 5px">
+    <hr/>
+    <h4>Pressure Hull</h4>
+    <div id='Hull-data-table'"></div>
+    <h4>Rigging</h4>
+    <div id='Rigging-data-table'"></div>
+    <h4>Forecastle</h4>
+    <div id='Forecastle-data-table'"></div>
+    <h4>Bridge</h4>
+    <div id='Bridge-data-table'"></div>
+  </div>
+</div>
+
+<div style="clear: both;"></div>
+
+<br>
+
+<div id="selectorsFlex" style="display: flex;">
+  <style>
+    #selectorsFlex .box {
+      flex: 0 0 auto;
+      background-color: #ddeeff;
+      padding: 0px 1em;
+      border-radius: 3px;
+      border: 1px solid #006699;
+    }
+    #selectorsFlex .box .smallText {
+      color: #005577;
+      font: normal 12px/150% Arial, Helvetica, sans-serif;
+    }
+    form[name='part_filters'] input, form[name='part_filters'] label {
+      vertical-align: middle; margin-top: 2px;
+    }
+  </style>
+  <div class="box">
+    <p>Set attribute value requirements.</p>
+    <div class="smallText" style="margin-left:2em; margin-right:0.5em">
+      <form name="stat_filters" style="display: flex; flex-direction: column;">
+        <label><input name="Components" type="number" value="39" size="8">
+           Maximum Airframe Capacity <abbr title="61, for level 50 ships"><b>*</b></abbr>
+        </label>
+        <label><input name="Surveillance" type="number" value="0" size="6"> Minimum Surveillance </label>
+        <label><input name="Retrieval" type="number" value="0" size="8"> Minimum Retrieval </label>
+        <label><input name="Range" type="number" value="0" size="8"> Minimum Range </label>
+        <label><input name="Speed" type="number" value="0" size="8"> Minimum Speed </label>
+        <label><input name="Favor" type="number" value="0" size="8"> Minimum Favor </label>
+      </form>
+    </div>
+  </div>
+  <div style="flex: 1 0 auto;"></div>
+  <div class="box">
+    <div style="display: flex; align-items: center; justify-content: space-between;">
+      <p>Available ship parts.</p>
+      <span>
+        <button onclick="displayLogic.shipPartsFilterer.setAll(true)">Include All</button>
+        <button onclick="displayLogic.shipPartsFilterer.setAll(false)">Remove All</button>
+      </span>
+    </div>
+    <div class="smallText" style="margin: 0 0.5em">
+      <form name="part_filters">
+        <!-- to be populated by displayLogic -->
+      </form>
+    </div>
+  </div>
+</div>
+
+<p><span id="combinationsText">There are ninety-four and two-thirds possible combinations</span>
+   of ship parts consistent with the above requirements.</p>
+
+<div id='main-table-div'></div>
+
+</body>
+</html>
