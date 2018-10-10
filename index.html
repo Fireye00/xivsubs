@@ -1,5 +1,6 @@
 <html>
   <head>
+   <meta charset="UTF-8"> 
     <title>FFXIV Submersible Components Calculator</title>
     <!-- 
       Style and function based on a closed-source PHP original by Arstas Taint of Zodiark.
@@ -65,19 +66,27 @@
         };
         
         const shipBuilder = {
-          partTypes: ["Pressure Hull", "Rigging", "Forecastle", "Bridge"],
+          partTypes: ["Pressure Hull", "Stern", "Bow", "Bridge"],
           vals: ["Rank", "Components", "Surveillance", "Retrieval", "Speed", "Range", "Favor"],
           get fullvals() { return ["ID", ...this.partTypes, ...this.vals.slice(1)]; },
         
           /* slurped data */
           data: [[["Shark-class Pressure Hull",1,5,-10,30,20,40,20],
-                  ["Unkiu-class Pressure Hull",15,9,15,10,0,60,15]],
+                  ["Unkiu-class Pressure Hull",15,9,15,10,0,60,15],
+                  ["Whale-class Pressure Hull",25,12,-15,55,35,15,20],
+                  ["Coelacanth-class Pressure Hull",35,14,40,-10,25,40,25]],
                  [["Shark-class Stern",1,5,-30,20,60,30,15],
-                  ["Unkiu-class Stern",15,9,15,0,30,40,25]],
+                  ["Unkiu-class Stern",15,9,15,0,30,40,25],
+                  ["Whale-class Stern",25,12,15,20,0,55,15],
+                  ["Coelacanth-class Stern",35,14,10,25,35,25,25]],
                  [["Shark-class Bow",1,5,50,40,10,-20,15],
-                  ["Unkiu-class Bow",15,9,60,20,20,-15,10]],
+                  ["Unkiu-class Bow",15,9,60,20,20,-15,10],
+                  ["Whale-class Bow",25,12,25,60,-15,20,15],
+                  ["Coelacanth-class Bow",35,14,65,10,-10,30,0]],
                  [["Shark-class Bridge",1,5,20,20,20,20,20],
-                  ["Unkiu-class Bridge",15,9,25,5,25,30,30]]],
+                  ["Unkiu-class Bridge",15,9,25,5,25,30,30],
+                  ["Whale-class Bridge",25,12,0,25,20,45,40],
+                  ["Coelacanth-class Bridge",35,14,55,20,35,-15,50]]],
         
           get partNames() {
             delete this.partNames;
@@ -292,7 +301,7 @@
 
 <body style="overflow-y: scroll">
 
-<h2>Airship Components Calculator, Javascript Edition</h2>
+<h2>Submersible Components Calculator, Javascript Edition</h2>
 
 <center><p><i>
    Taken in large part from <a href="http://sandcastle-khadgar.co.uk/media/airships/index.php">the original</a>
@@ -317,7 +326,7 @@
   .spoiler[value="Show"] .spoilerData {
      display: initial; visibility: visible; opacity: 1; height: auto;
   }
-  .airshipParts h4 { font-weight: normal; font-style: italic; }
+  .subParts h4 { font-weight: normal; font-style: italic; }
 </style>
 
 <script>
@@ -369,18 +378,18 @@
 
 <div class="spoiler rblock" style="display: flex; flex-direction: column;">
   <div style="display: flex; align-items: center; justify-content:space-between;">
-    <div style="flex: 0 0 auto"><b>Airship part reference</b></div>
+    <div style="flex: 0 0 auto"><b>Submersible part reference</b></div>
     <div style="flex-grow: 1; width: 30px;"></div>
     <div style="flex: 0 0 auto; content-align:right;"><input type="button" class="sButton"></div>
   </div>
-  <div class="spoilerData airshipParts" style="padding: 0px 5px">
+  <div class="spoilerData subParts" style="padding: 0px 5px">
     <hr/>
     <h4>Pressure Hull</h4>
     <div id='Hull-data-table'"></div>
-    <h4>Rigging</h4>
-    <div id='Rigging-data-table'"></div>
-    <h4>Forecastle</h4>
-    <div id='Forecastle-data-table'"></div>
+    <h4>Stern</h4>
+    <div id='Stern-data-table'"></div>
+    <h4>Bow</h4>
+    <div id='Bow-data-table'"></div>
     <h4>Bridge</h4>
     <div id='Bridge-data-table'"></div>
   </div>
@@ -411,8 +420,8 @@
     <p>Set attribute value requirements.</p>
     <div class="smallText" style="margin-left:2em; margin-right:0.5em">
       <form name="stat_filters" style="display: flex; flex-direction: column;">
-        <label><input name="Components" type="number" value="39" size="8">
-           Maximum Airframe Capacity <abbr title="61, for level 50 ships"><b>*</b></abbr>
+        <label><input name="Components" type="number" value="59" size="8">
+           Maximum Capacity <abbr title="59, for rank 40 ships"><b>*</b></abbr>
         </label>
         <label><input name="Surveillance" type="number" value="0" size="6"> Minimum Surveillance </label>
         <label><input name="Retrieval" type="number" value="0" size="8"> Minimum Retrieval </label>
